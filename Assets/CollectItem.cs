@@ -4,9 +4,10 @@ using UnityEngine;
 
 public class CollectItem : MonoBehaviour
 {
-    public GameObject itemToCollect; // The item to be collected
+    public GameObject[] itemsToCollect; // Array of items to be collected
     public GameObject objectToAppear; // The object that will appear
     public string playerTag = "Player"; // Tag to identify the player
+    public int collectedItemCount = 0; // Counter for collected items
 
     void Start()
     {
@@ -22,10 +23,16 @@ public class CollectItem : MonoBehaviour
         // Check if the colliding object has the specified player tag
         if (collision.CompareTag(playerTag))
         {
-            // Destroy the item
-            if (itemToCollect != null)
+            // Loop through all items in the array and destroy any that are collected
+            foreach (var item in itemsToCollect)
             {
-                Destroy(itemToCollect);
+                if (item != null && item.activeInHierarchy)
+                {
+                    Destroy(item);  // Destroy the collected item
+                    collectedItemCount++;  // Increment the collected items count
+                    Debug.Log("Items collected: " + collectedItemCount);  // Display the updated count
+                    break; // Exit loop after the first collected item is destroyed
+                }
             }
 
             // Make the other object appear
@@ -36,4 +43,3 @@ public class CollectItem : MonoBehaviour
         }
     }
 }
-

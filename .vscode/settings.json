@@ -56,5 +56,5 @@
         "temp/": true,
         "Temp/": true
     },
-    "dotnet.defaultSolution": "Nappala Performance Task.sln"
+    "dotnet.defaultSolution": "NapaliaGameDev_PT.sln"
 }

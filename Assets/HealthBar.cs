@@ -12,11 +12,11 @@ public class HealthBar : MonoBehaviour
     [Header("References")]
     [SerializeField] private Slider healthSlider;
     [SerializeField] private Animator animator;
-
     private float currentHealth;
     private Rigidbody2D rb;
     private SpriteRenderer spriteRenderer;
     private Color originalColor;
+    public GameObject Death_UI;
 
     private void Awake()
     {
@@ -29,16 +29,27 @@ public class HealthBar : MonoBehaviour
 
     private void Start()
     {
+        Death_UI = GameObject.Find("DeathUI");  // Look for the Death UI in the scene
+        if (Death_UI == null)
+        {
+            Debug.LogError("Death UI object not found!");
+        }
+        else
+        {
+            Death_UI.SetActive(false);  // Make sure the death UI is hidden initially
+        }
+
         InitializeHealth();
+
         if (spriteRenderer != null)
         {
-            originalColor = spriteRenderer.color; 
+            originalColor = spriteRenderer.color;
         }
     }
 
     private void Update()
     {
-        if (Input.GetKeyDown(KeyCode.K))
+        if (Input.GetKeyDown(KeyCode.K)) // Temporary testing key for taking damage
         {
             TakeDamage(10f);
         }
@@ -88,7 +99,7 @@ public class HealthBar : MonoBehaviour
         }
         else
         {
-            // Disable the PlayerMovement script
+            // Disable the PlayerMovement script temporarily
             playerMovement.enabled = false;
             StartCoroutine(DisableMovement());
         }
@@ -99,10 +110,10 @@ public class HealthBar : MonoBehaviour
         ApplyBounceBack();
         PlayDamageAnimation();
         TriggerRedGlow();
-        
-        yield return new WaitForSeconds(1);
-        
-        // Enable the PlayerMovement script again
+
+        yield return new WaitForSeconds(1); // Disable movement for 1 second
+
+        // Re-enable PlayerMovement after the delay
         playerMovement.enabled = true;
     }
 
@@ -149,8 +160,8 @@ public class HealthBar : MonoBehaviour
 
     private IEnumerator GlowRedEffect()
     {
-        spriteRenderer.color = Color.red; 
-        yield return new WaitForSeconds(0.1f); 
+        spriteRenderer.color = Color.red;
+        yield return new WaitForSeconds(0.1f);
 
         float fadeDuration = 0.5f;
         float elapsedTime = 0f;
@@ -162,19 +173,25 @@ public class HealthBar : MonoBehaviour
             yield return null;
         }
 
-        spriteRenderer.color = originalColor; 
+        spriteRenderer.color = originalColor;  // Reset to the original color
     }
 
     private void HandleDeath()
     {
         if (animator != null)
         {
-            animator.SetTrigger("Die"); // Assumes you have a death animation trigger set up
+            animator.SetTrigger("Die");  // Trigger death animation
         }
 
-        // Disable player movement and other components if needed
+        // Disable player movement and other components
         playerMovement.enabled = false;
-        
+
+        // Display the death UI
+        if (Death_UI != null)
+        {
+            Death_UI.SetActive(true);  // Activate the death screen
+        }
+
         // Optionally, destroy the player after a delay
         // Destroy(gameObject, 2f); // Uncomment to destroy the object after 2 seconds
     }
