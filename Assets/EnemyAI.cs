@@ -24,6 +24,10 @@ public class EnemyAI : MonoBehaviour
     [SerializeField] private float wallCheckDistance = 1f;
     [SerializeField] private LayerMask wallLayer;
 
+    [Header("Separation Settings")]
+    [SerializeField] private float separationRadius = 1.5f;
+    [SerializeField] private float separationForce = 2f;
+
     // Private fields
     private Rigidbody2D body;
     private Transform player;
@@ -33,6 +37,7 @@ public class EnemyAI : MonoBehaviour
     private bool movingToB = true;
     private bool isGrounded;
     private Animator animator;
+    private float direction = 1f; // 1 for right, -1 for left
 
     private EnemyState currentState;
 
@@ -47,17 +52,30 @@ public class EnemyAI : MonoBehaviour
     {
         body = GetComponent<Rigidbody2D>();
         animator = GetComponent<Animator>();
-        player = GameObject.FindGameObjectWithTag("Player").transform;
+        player = GameObject.FindGameObjectWithTag("Player")?.transform;
+
+        if (player == null)
+        {
+            Debug.LogError("Player not found in the scene. Make sure the player has the 'Player' tag.");
+        }
 
         // Set patrol points based on initial position
         pointA = transform.position + Vector3.left * patrolDistance;
         pointB = transform.position + Vector3.right * patrolDistance;
         nextPoint = pointB;
         currentState = EnemyState.Patrol;
+
+        IgnoreEnemyCollisions(); // Prevent enemies from colliding with each other
     }
 
     private void Update()
     {
+        if (groundCheck == null)
+        {
+            Debug.LogError("GroundCheck transform is not assigned.");
+            return;
+        }
+
         // Ground check
         isGrounded = Physics2D.OverlapCircle(groundCheck.position, groundCheckRadius, groundLayer);
 
@@ -68,24 +86,29 @@ public class EnemyAI : MonoBehaviour
         }
 
         // Determine the state based on player's position
-        float distanceToPlayer = Vector2.Distance(transform.position, player.position);
+        if (player != null)
+        {
+            float distanceToPlayer = Vector2.Distance(transform.position, player.position);
 
-        if (distanceToPlayer <= attackRange)
-        {
-            ChangeState(EnemyState.Attack);
-        }
-        else if (distanceToPlayer <= chaseRange)
-        {
-            ChangeState(EnemyState.Chase);
-        }
-        else
-        {
-            ChangeState(EnemyState.Patrol);
+            if (distanceToPlayer <= attackRange)
+            {
+                ChangeState(EnemyState.Attack);
+            }
+            else if (distanceToPlayer <= chaseRange)
+            {
+                ChangeState(EnemyState.Chase);
+            }
+            else
+            {
+                ChangeState(EnemyState.Patrol);
+            }
         }
     }
 
     private void FixedUpdate()
     {
+        ApplySeparationForce(); // Keep enemies apart
+
         // Handle behavior based on current state
         switch (currentState)
         {
@@ -96,15 +119,14 @@ public class EnemyAI : MonoBehaviour
                 ChasePlayer();
                 break;
             case EnemyState.Attack:
-                // No movement in attack state
-                body.velocity = new Vector2(0, body.velocity.y);
+                body.velocity = new Vector2(0, body.velocity.y); // Stop movement during attack
                 break;
         }
     }
 
     private void ChangeState(EnemyState newState)
     {
-        if (currentState == newState) return;
+        if (currentState == newState) return; // Prevent redundant state transitions
         currentState = newState;
 
         // Handle state transitions
@@ -130,18 +152,21 @@ public class EnemyAI : MonoBehaviour
         {
             movingToB = !movingToB;
             nextPoint = movingToB ? pointB : pointA;
+            direction *= -1; // Reverse direction
             Flip();
         }
 
-        Vector2 direction = (nextPoint - transform.position).normalized;
-        body.velocity = new Vector2(direction.x * speed, body.velocity.y);
+        Vector2 directionVector = (nextPoint - transform.position).normalized;
+        body.velocity = new Vector2(directionVector.x * speed, body.velocity.y);
     }
 
     private void ChasePlayer()
     {
+        if (player == null) return;
+
         // Chase the player
-        Vector2 direction = (player.position - transform.position).normalized;
-        body.velocity = new Vector2(direction.x * speed, body.velocity.y);
+        Vector2 directionVector = (player.position - transform.position).normalized;
+        body.velocity = new Vector2(directionVector.x * speed, body.velocity.y);
 
         // Jump if the player is higher
         if (isGrounded && player.position.y > transform.position.y + 0.5f)
@@ -150,8 +175,9 @@ public class EnemyAI : MonoBehaviour
         }
 
         // Flip based on player position
-        if ((direction.x > 0 && transform.localScale.x < 0) || (direction.x < 0 && transform.localScale.x > 0))
+        if ((directionVector.x > 0 && direction < 0) || (directionVector.x < 0 && direction > 0))
         {
+            direction = Mathf.Sign(directionVector.x);
             Flip();
         }
     }
@@ -159,7 +185,7 @@ public class EnemyAI : MonoBehaviour
     private void Flip()
     {
         Vector3 scale = transform.localScale;
-        scale.x = Mathf.Sign(body.velocity.x) * Mathf.Abs(scale.x); // Flip based on velocity direction
+        scale.x = direction * Mathf.Abs(scale.x); // Flip based on direction
         transform.localScale = scale;
     }
 
@@ -176,18 +202,52 @@ public class EnemyAI : MonoBehaviour
         }
     }
 
-    // Check if the enemy hits a wall or obstacle
     private bool IsWallDetected()
     {
-        RaycastHit2D hit = Physics2D.Raycast(transform.position, Vector2.right * Mathf.Sign(transform.localScale.x), wallCheckDistance, wallLayer);
+        RaycastHit2D hit = Physics2D.Raycast(transform.position, Vector2.right * direction, wallCheckDistance, wallLayer);
         return hit.collider != null;
     }
 
-    // Change the patrol direction when a wall is detected
     private void ChangePatrolDirection()
     {
         movingToB = !movingToB;
         nextPoint = movingToB ? pointB : pointA;
+        direction *= -1; // Reverse direction
         Flip();
+    }
+
+    private void IgnoreEnemyCollisions()
+    {
+        Collider2D[] colliders = GetComponents<Collider2D>();
+
+        foreach (GameObject enemy in GameObject.FindGameObjectsWithTag("Enemy"))
+        {
+            if (enemy == gameObject) continue;
+
+            Collider2D[] enemyColliders = enemy.GetComponents<Collider2D>();
+            foreach (Collider2D collider in colliders)
+            {
+                foreach (Collider2D enemyCollider in enemyColliders)
+                {
+                    Physics2D.IgnoreCollision(collider, enemyCollider);
+                }
+            }
+        }
+    }
+
+    private void ApplySeparationForce()
+    {
+        foreach (GameObject enemy in GameObject.FindGameObjectsWithTag("Enemy"))
+        {
+            if (enemy == gameObject) continue;
+
+            Vector2 direction = transform.position - enemy.transform.position;
+            float distance = direction.magnitude;
+
+            if (distance < separationRadius && distance > 0)
+            {
+                body.AddForce(direction.normalized * separationForce / distance, ForceMode2D.Impulse);
+            }
+        }
     }
 }
